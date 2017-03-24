@@ -1,3 +1,8 @@
+Fork of the SPAdes genome assembler (ablab/spades).
+Developing a tool for finding and analyzing polymorphism structures in genome assembly graphs.
+by Egor Shcherbin
+===== The original SPAdes README follows: =====
+
 SPAdes
 Genome assembler for single-cell and isolates data sets
 Version: see VERSION
