@@ -43,6 +43,11 @@ private:
     std::unordered_map<VertexId, vertex_traversal::VertexTraversalStatus> vertices_status_;
 
     boost::optional<VertexId> FindSink(conj_graph_pack &gp, VertexId source);
+
+    void CollectBubble(conj_graph_pack &gp, VertexId source, VertexId sink, std::set<EdgeId> &result) const;
+
+    template <class BubblesContainer>
+    void OutputBubbles(conj_graph_pack &gp, const BubblesContainer &bubbles, const string &bubbles_name) const;
 };
 
 } // debruijn_graph

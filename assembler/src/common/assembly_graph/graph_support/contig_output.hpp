@@ -133,6 +133,101 @@ public:
 };
 
 template<class Graph>
+class GFAComponentWriter {
+private:
+    typedef typename Graph::EdgeId EdgeId;
+    const GraphComponent<Graph> &component_;
+    const path_extend::PathContainer &paths_;
+    const string filename_;
+    std::set<EdgeId> set_of_authentic_edges_;
+
+    bool IsCanonical(EdgeId e) const {
+        return e <= component_.g().conjugate(e);
+    }
+
+    std::string GetOrientation(EdgeId e) const {
+        return IsCanonical(e) ? "+" : "-";
+    }
+
+    void WriteSegments(std::ofstream &stream) {
+        GFASegmentWriter segment_writer(stream);
+        for (auto edge : component_.edges()) {
+            if (IsCanonical(edge)) {
+                segment_writer.Write(edge.int_id(), component_.g().EdgeNucls(edge),
+                                     component_.g().coverage(edge) * double(component_.g().length(edge)));
+            }
+        }
+    }
+
+    void WriteLinks(std::ofstream &stream) {
+        GFALinkWriter link_writer(stream, component_.g().k());
+        for (auto v : component_.vertices()) {
+            for (auto inc_edge : component_.g().IncomingEdges(v)) {
+                if (!component_.contains(inc_edge)) {
+                    continue;
+                }
+                std::string orientation_first = GetOrientation(inc_edge);
+                size_t segment_first = IsCanonical(inc_edge) ? inc_edge.int_id()
+                                                             : component_.g().conjugate(inc_edge).int_id();
+                for (auto out_edge : component_.g().OutgoingEdges(v)) {
+                    if (!component_.contains(out_edge)) {
+                        continue;
+                    }
+                    size_t segment_second = IsCanonical(out_edge) ? out_edge.int_id()
+                                                                  : component_.g().conjugate(out_edge).int_id();
+                    std::string orientation_second = GetOrientation(out_edge);
+                    link_writer.Write(segment_first, orientation_first, segment_second, orientation_second);
+                }
+            }
+        }
+    }
+
+    void UpdateSegmentedPath(PathSegmentSequence &segmented_path, EdgeId e) {
+        std::string segment_id = IsCanonical(e) ? ToString(e.int_id()) : ToString(component_.g().conjugate(e).int_id());
+        std::string orientation = GetOrientation(e);
+        segmented_path.segment_sequence_.push_back(segment_id + orientation);
+    }
+
+    void WritePaths(std::ofstream &stream) {
+        GFAPathWriter path_writer(stream);
+        for (const auto &path_pair : paths_) {
+            const path_extend::BidirectionalPath &p = (*path_pair.first);
+            if (p.Size() == 0) {
+                continue;
+            }
+            PathSegmentSequence segmented_path;
+            segmented_path.path_id_ = p.GetId();
+            for (size_t i = 0; i < p.Size() - 1; ++i) {
+                EdgeId e = p[i];
+                UpdateSegmentedPath(segmented_path, e);
+                if (component_.g().EdgeEnd(e) != component_.g().EdgeStart(p[i+1])) {
+                    path_writer.Write(segmented_path);
+                    segmented_path.segment_number_++;
+                    segmented_path.Reset();
+                }
+            }
+            UpdateSegmentedPath(segmented_path, p.Back());
+            path_writer.Write(segmented_path);
+
+        }
+    }
+
+public:
+    GFAComponentWriter(const GraphComponent<Graph> &component, const path_extend::PathContainer &paths,
+                       const string &filename)
+            : component_(component), paths_(paths), filename_(filename) {
+    }
+
+    void Write() {
+        std::ofstream stream;
+        stream.open(filename_);
+        WriteSegments(stream);
+        WriteLinks(stream);
+        WritePaths(stream);
+    }
+};
+
+template<class Graph>
 class GFAWriter {
 private:
     typedef typename Graph::EdgeId EdgeId;
@@ -156,7 +251,10 @@ private:
     void WriteSegments(std::ofstream &stream) {
         GFASegmentWriter segment_writer(stream);
         for (auto it = graph_.ConstEdgeBegin(true); !it.IsEnd(); ++it) {
-            segment_writer.Write((*it).int_id(), graph_.EdgeNucls(*it), graph_.coverage(*it) * double(graph_.length(*it)));
+            if (IsCanonical(*it)) {
+                segment_writer.Write((*it).int_id(), graph_.EdgeNucls(*it),
+                                     graph_.coverage(*it) * double(graph_.length(*it)));
+            }
         }
     }
 
@@ -503,6 +601,13 @@ inline void OutputContigs(ConjugateDeBruijnGraph &g, const string &contigs_outpu
 //    if(!output_unipath) {
 //        OutputContigs(g, contigs_output_filename + ".2.fasta", true, solid_edge_length_bound);
 //    }
+}
+
+inline void OutputComponentToGFA(GraphComponent<ConjugateDeBruijnGraph> &comp, path_extend::PathContainer &paths,
+                                 const string &contigs_output_filename) {
+    INFO("Outputting graph component to " << contigs_output_filename << ".gfa");
+    GFAComponentWriter<ConjugateDeBruijnGraph> writer(comp, paths, contigs_output_filename + ".gfa");
+    writer.Write();
 }
 
 inline void OutputContigsToGFA(ConjugateDeBruijnGraph &g, path_extend::PathContainer &paths, const string &contigs_output_filename) {
