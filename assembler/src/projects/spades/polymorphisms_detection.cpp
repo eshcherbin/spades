@@ -1,4 +1,5 @@
 #include <set>
+#include <assembly_graph/graph_support/contig_output.hpp>
 
 #include "polymorphisms_detection.hpp"
 
@@ -35,18 +36,19 @@ void PolymorphismsDetection::run(conj_graph_pack &gp, const char*) {
         }
     }
     INFO(simple_bubbles.size() << " simple bubbles found");
-
+    OutputBubbles(gp, simple_bubbles, "simple");
     INFO("Detecting all bubbles");
     vertices_status_.reserve(gp.g.size());
-    std::vector<PolymorphismBubble> bubbles;
+    std::vector<PolymorphismBubble> all_bubbles;
     for (VertexId source : gp.g) {
         if (boost::optional<VertexId> sink = FindSink(gp, source)) {
             if (gp.g.GetEdgesBetween(source, *sink).size() != 1) {
-                bubbles.push_back(PolymorphismBubble(source, *sink));
+                all_bubbles.push_back(PolymorphismBubble(source, *sink));
             }
         }
     }
-    INFO(bubbles.size() << " bubbles found");
+    INFO(all_bubbles.size() << " bubbles found");
+    OutputBubbles(gp, all_bubbles, "all");
     INFO("Polymorphisms detection ended");
 }
 
@@ -98,6 +100,52 @@ boost::optional<VertexId> PolymorphismsDetection::FindSink(conj_graph_pack &gp, 
         }
     }
     return boost::none;
+}
+
+template <class BubblesContainer>
+void PolymorphismsDetection::OutputBubbles(conj_graph_pack& gp, const BubblesContainer& bubbles,
+                                           const string& bubbles_name) const {
+    INFO("Collecting " << bubbles_name << " bubbles into a single graph component");
+    std::set<EdgeId> bubbles_edges;
+    for (const auto& bubble : bubbles) {
+        CollectBubble(gp, bubble.source, bubble.sink, bubbles_edges);
+    }
+    GraphComponent<conj_graph_pack::graph_t> bubbles_component =
+            GraphComponent<conj_graph_pack::graph_t>::FromEdges(gp.g, bubbles_edges, false,
+                                                                bubbles_name + "_bubbles");
+    INFO("Collected " << bubbles_edges.size() << " edges");
+    path_extend::PathContainer paths;
+    OutputComponentToGFA(bubbles_component, paths, cfg::get().output_dir + bubbles_component.name());
+}
+
+void PolymorphismsDetection::CollectBubble(conj_graph_pack& gp, VertexId source, VertexId sink,
+                                           std::set<EdgeId>& result) const {
+    std::queue<VertexId> queue;
+    std::set<VertexId> seen;
+    queue.push(source);
+    seen.insert(source);
+    while (!queue.empty()) {
+        VertexId v = queue.front();
+        queue.pop();
+        if (v == sink) {
+            continue;
+        }
+        for (EdgeId edge : gp.g.OutgoingEdges(v)) {
+            result.insert(edge);
+            VertexId u = gp.g.EdgeEnd(edge);
+            if (seen.count(u) == 0) {
+                seen.insert(u);
+                queue.push(u);
+            }
+        }
+    }
+    // add some entrance and exit edges for GFA to look nice
+    if (!gp.g.IsDeadStart(source)) {
+        result.insert(*gp.g.IncomingEdges(source).begin());
+    }
+    if (!gp.g.IsDeadEnd(sink)) {
+        result.insert(*gp.g.OutgoingEdges(sink).begin());
+    }
 }
 
 } // debruijn_graph
