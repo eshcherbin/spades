@@ -17,7 +17,8 @@ add_executable(spades main.cpp
             contig_output_stage.cpp
             hybrid_aligning.cpp
             chromosome_removal.cpp
-            ../mts/contig_abundance.cpp)
+            ../mts/contig_abundance.cpp
+            polymorphisms_detection.cpp)
 
 target_include_directories(spades PRIVATE ${EXT_DIR}/include/ConsensusCore)
 target_link_libraries(spades ConsensusCore common_modules nlopt BamTools ssw ${COMMON_LIBRARIES})

@@ -24,6 +24,7 @@
 #include "series_analysis.hpp"
 #include "pipeline/stage.hpp"
 #include "contig_output_stage.hpp"
+#include "polymorphisms_detection.hpp"
 
 namespace spades {
 
@@ -101,6 +102,7 @@ void assemble_genome() {
                 SPAdes.add(new debruijn_graph::PairInfoCount(true))
                       .add(new debruijn_graph::DistanceEstimation(true))
                       .add(new debruijn_graph::RepeatResolution(true))
+                      .add(new debruijn_graph::PolymorphismsDetection)
                       .add(new debruijn_graph::ContigOutput(true, true, prelim_prefix))
                       .add(new debruijn_graph::SecondPhaseSetup(prelim_prefix));
 
