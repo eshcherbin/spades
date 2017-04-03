@@ -251,10 +251,7 @@ private:
     void WriteSegments(std::ofstream &stream) {
         GFASegmentWriter segment_writer(stream);
         for (auto it = graph_.ConstEdgeBegin(true); !it.IsEnd(); ++it) {
-            if (IsCanonical(*it)) {
-                segment_writer.Write((*it).int_id(), graph_.EdgeNucls(*it),
-                                     graph_.coverage(*it) * double(graph_.length(*it)));
-            }
+            segment_writer.Write((*it).int_id(), graph_.EdgeNucls(*it), graph_.coverage(*it) * double(graph_.length(*it)));
         }
     }
 
